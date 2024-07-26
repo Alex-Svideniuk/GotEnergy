@@ -1,0 +1,81 @@
+<html>
+  <head>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.0.0/jquery.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-modal/0.9.1/jquery.modal.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.18.1/moment.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.js"></script>
+	<script>
+			
+	$(document).ready(function() {
+		var today = moment(new Date()).format('YYYY-MM-DD')
+		$("#lblToday").text(today);
+		
+		async function getText(file) {
+			let myObject = await fetch(file);
+			let myText = await myObject.text();
+			myDisplay(myText);
+		}
+		
+		$.getJSON("/api/elpricesnow","zone:3;date:2023-05-30;",function(result, status){
+			console.info(result);
+			//res = JSON.parse(result);
+			$("#lblMinP").text(Math.round(result.minNext, 1));
+			$("#lblMinIn").text(result.minIn + " (" + result.minDT + ")");
+			
+			yToday = new Array(result.values.x.length).fill(0);
+			yToday[result.nowIndex] = 100
+
+			yNewDay = new Array(result.values.x.length).fill(0);
+			yNewDay[0] = 100
+			yNewDay[24] = 100
+			yNewDay[48] = 100
+
+			new Chart("myChart", {
+			type: "line",
+			data: {
+				labels: result.values.x,
+				datasets: [{
+					fill: false,
+					lineTension: 0,
+					backgroundColor: "#00CC00",
+					borderColor: "#00CC00",
+					steppedLine: true,
+					data: result.values.ym
+				},	{
+					fill: false,
+					lineTension: 0,
+					backgroundColor: "rgba(0,0,255,1.0)",
+					borderColor: "rgba(0,0,255,0.1)",
+					steppedLine: true,
+					data: result.values.y
+				},	{
+          type: 'bar',
+          label: 'NewDay',
+          data: yNewDay
+        },	{
+          type: 'bar',
+          label: 'Today',
+					backgroundColor: "#fcdf03",
+          data: yToday
+				}]
+			},
+			options: {
+				legend: {display: false},
+				scales: {
+					yAxes: [{ticks: {min: result.min, max:result.max}}],
+				}
+			}
+			});
+		});		
+		
+
+	});
+	</script>
+  </head>
+  <body>
+    <p>Energy price for <label id="lblToday"></label> </p>
+	<p>Lowest price is <i><label id="lblMinP"></label> &ouml;re/kWh</i> in <label id="lblMinIn"></label></p>
+
+	<canvas id="myChart" style="width:100%;max-width:700px"></canvas>
+  </body>
+</html>
