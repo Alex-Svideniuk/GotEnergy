@@ -3,15 +3,11 @@ function strDate(date, fortmat = 'YYYY-MM-DD') {
 }
 
 function hourRange(dt){
-    if (new Date((new Date()).toDateString()) < new Date(dt.toDateString())){
+    if (new Date().setHours(0,0,0,0) < new Date(dt).setHours(0,0,0,0)){
         return "TOMORROW";
     }
-    let nextH = new Date(dt); nextH.setHours(nextH.getHours()+1)
-    return toHourString(dt.getHours()) +"-" + toHourString(nextH.getHours());
-}
-
-function toHourString(hour){
-    return String(hour).padStart(2, '0')+":00";
+    let curH = new Date(dt).setMinutes(0, 0, 0);
+    return strDate(curH,"HH:mm-") + strDate(new Date(curH).setMinutes(60),"HH:mm");
 }
 
 function fontSize (context) {
@@ -24,6 +20,14 @@ function print(str){
 
 function checkMinPrice(val, min){
     return ((val < 0) || (val - min < 4) || (min > 0 && val / min < 1.1) );
+}
+
+function roundUpBy(val, step){
+    return (Math.floor(val*1.02 / step)+1)*step;
+}
+
+function roundDownBy(val, step){
+    return (Math.floor(val / step))*step;
 }
 
 function findNowIndex(values) {
@@ -45,21 +49,41 @@ function setScale(chart){
     }
 }
 
-function createLabelAnnot(pos, text, yAdjust=0){
+function createLabelAnnot(date, text, xAdj=14, yAdj=0){
     return {
+        type: 'line',
+        scaleID: "x",
+        borderColor: "rgba(0,0,0,0.2)",
+        borderWidth: 4,
+        value: date,
+        label:{
+            rotation:90,
+            enabled:true,
+            position:"0%",
+            backgroundColor: "rgba(153,0,153,0.1)",
+            borderRadius:0,
+            width: 200,
+            color:"rgba(0,0,0,0.3)",
+            content: text,
+            yAdjust: yAdj,       
+            xAdjust: xAdj,
+            font: fontSize,
+        }
+    }
+    /*return {
         type:'label',
         backgroundColor: "rgba(153,0,153,0.1)",
         color:"rgba(0,0,0,0.3)",
         width: 200,
-        xValue: pos,
+        xValue: date,
         yValue: function(ctx){
             let y = ctx.chart.scales.y;
             return y.min + (y.max - y.min)*0.86;
         } ,    
         yAdjust: yAdjust,       
         xAdjust: 16,
-        content: text,
+        content: strDate(date,"MMMM YYYY"),
         rotation: 90,
         font: fontSize,
-    }
+    }*/
 }

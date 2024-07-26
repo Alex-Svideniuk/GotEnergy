@@ -12,30 +12,62 @@ class apiEndpoint(object):
         zone = req.get_param_as_int("zone", True, 1, 4)
 
         client = dbEnergy()
-        if (endpoint == 'dailystats'):
-            day = req.get_param_as_date("date", format_string='%Y-%m-%d', required=True)
-            results = client.getDailyStats(zone, day)
-            resp.status = falcon.HTTP_200
+        match endpoint:
 
-        elif (endpoint == 'monthlystats'):
-            results = client.getMonthlyStats(zone)
-            resp.status = falcon.HTTP_200
+            ################    Endpoint for Gothenburg Energy    #####################
+            case 'elprice':
+                day = req.get_param_as_date("date", format_string='%Y-%m-%d', required=False)
+                if day == None:
+                    print ("Current date requested")
+                    results = client.getCurrentPrise(zone)
+                else:
+                    results = client.getDayPrise(zone, day)
+                if results == None:
+                    resp.status = falcon.HTTP_204
+                else:
+                    resp.status = falcon.HTTP_200
 
-        elif (endpoint == 'elprice'):
-            day = req.get_param_as_date("date", format_string='%Y-%m-%d', required=False)
-            if day == None:
-                print ("Current date requested")
-                results = client.getCurrentPrise(zone)
-            else:
-                results = client.getDayPrise(zone, day)
-            if results == None:
+            case 'dailystats':
+                day = req.get_param_as_date("date", format_string='%Y-%m-%d', required=True)
+                results = client.getDailyStats(zone, day)
+                if results == client.EMPTY_DAYS:
+                    resp.status = falcon.HTTP_204
+                else:
+                    resp.status = falcon.HTTP_200
+
+            case 'monthlystats':
+                #results = client.getMonthlyStats(zone)
                 resp.status = falcon.HTTP_404
-            else:
+
+            ################    Endpoint for Gothenburg Energy    #####################
+            case 'tibberprice':
+                day = req.get_param_as_date("date", format_string='%Y-%m-%d', required=False)
+                if day == None:
+                    print ("Current date requested")
+                    results = client.getCurrentTibberPrise(zone)
+                else:
+                    results = client.getDayTibberPrise(zone, day)
+                if results == client.EMPTY_HOURS:
+                    resp.status = falcon.HTTP_204
+                else:
+                    resp.status = falcon.HTTP_200
+
+            case 'dailytibberstats':
+                day = req.get_param_as_date("date", format_string='%Y-%m-%d', required=True)
+                results = client.getDailyTibberStats(zone, day)
+                if results == client.EMPTY_DAYS:
+                    resp.status = falcon.HTTP_204
+                else:
+                    resp.status = falcon.HTTP_200
+
+            case 'monthlytibberstats':
+                results = client.getMonthlyTibberStats(zone)
                 resp.status = falcon.HTTP_200
 
-        else: 
-            print("Endpoint not supported")
-            resp.status = falcon.HTTP_404
+            ################    the rest is not supported    #####################
+            case _: 
+                print("Endpoint not supported")
+                resp.status = falcon.HTTP_404
         client.endSession()
 
         try:

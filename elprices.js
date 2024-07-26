@@ -1,16 +1,9 @@
 var hourlyChart = null;
 var dailyChart = null;
 var monthlyChart = null; 
+var currentDate = new Date();
 
-$(document).ready(function() {
-    $("#lblDate").val(new Date());
-    //$("#W").text($(window).width()) 
-    //$("#H").text($(window).height())
-    //$("#M").text(navigator.userAgentData.mobile)
-    $("#hourlyChart").ondblclick = function(click2){
-        print("Double click")
-    }
-    
+$(document).ready(function() {    
     hourlyChartInit();
     dailyChartInit();
     monthlyChartInit();
@@ -23,14 +16,16 @@ function hourlyChartInit(){
         datasets: [{
             stepped: true,
             fill: true,
-            parsing: {yAxisKey: 'value'},
+            parsing: {yAxisKey: 'price.totalprice'},
             backgroundColor: "rgba(0,0,255,0.1)",
             borderColor: "rgba(0,0,255,0.5)",
             segment: {
                 backgroundColor: function(ctx) {
+                    let now = new Date();
+                    let transp = (new Date(ctx.p0.raw.dt) < now && new Date(ctx.p1.raw.dt) > now)? 0.7 : 0.1;
                     if (checkMinPrice(ctx.p0.parsed.y, ctx.chart.min)) 
-                        return "rgba(0,204,0,0.1)"
-                    return "rgba(0,0,255,0.1)"
+                        return "rgba(0,204,0,"+transp+")"
+                    return "rgba(0,0,255,"+transp+")"
                 },
                 borderColor: function(ctx) {
                     if (checkMinPrice(ctx.p0.parsed.y, ctx.chart.min)) 
@@ -44,6 +39,16 @@ function hourlyChartInit(){
     var hOpt= {
         zoomed: false,
         parsing: {xAxisKey: 'dt'},
+        interaction: {
+            intersect: false,
+            mode: 'index',
+            axis:'x',
+            xAlign:"center",
+            yAlign:'bottom',
+            titleColor:"rgba(255,255,0,1)",
+            titleAlign:'center',
+        },
+      
         scales: {
             y: {ticks: {font:fontSize}, 
                 grid:{
@@ -64,14 +69,18 @@ function hourlyChartInit(){
                     },
                 }
             },
-            x: {type:'timeseries',
+            x: {autoSkip:false,
+                type:'time',
                 time:{
                     unit:'hour',
                     tooltipFormat: "DD MMM YY HH:mm",
+                    displayFormats: {
+                        hour:'HH:mm'
+                    }
                 }, 
                 grid: {
                     drawTicks:false,
-                    color: function(ctx) {
+                    /*color: function(ctx) {
                         if (ctx.type != "tick")
                             return ;
                         //print(ctx.tick.label)
@@ -84,6 +93,7 @@ function hourlyChartInit(){
                     lineWidth: function(ctx) {
                         if (ctx.type != "tick")
                             return;
+                        //print(ctx.tick)
                         dt = new Date(ctx.tick.value)
                         var i = ctx.index;
                         if (ctx.tick.label.length > 5 && i !=0 && i != ctx.chart.scales.x.max)
@@ -91,18 +101,28 @@ function hourlyChartInit(){
                         if (ctx.tick.label)
                             return 1;
                         return 0;
-                    }
+                    }*/
                 },
                 ticks: {
                     autoSkip:false,
-                    font:fontSize,
+                    font: function(ctx){
+                        let fnt = fontSize();
+                        if (new Date(ctx.tick.value).getHours() == 0) {
+                            //print(strDate(dt,"DD MMM"))
+                            fnt['weight']='bolder';
+                        }
+                        return fnt;
+                    },
                     callback: function(value, index, ticks) {
                         let hour = this.getLabelForValue(value);
-                        dt = new Date(hour)
-                        if (dt.getHours() == 0)
+                        dt = new Date(hour);
+                        if (dt.getHours() == 0) {
+                            //print(strDate(dt,"DD MMM"))
                             return strDate(dt,"DD MMM");
-                        if (dt.getHours() % 2 == 1)
+                        }
+                        if (dt.getHours() % 2 == 1) {
                             return "" ;
+                        }
                         return strDate(dt,"HH:mm");
                     }
                 }
@@ -110,38 +130,23 @@ function hourlyChartInit(){
         },
         plugins: {
             legend: false,
-            /*animation:{
-                annotations:{
-                    nowLine:{
-                        type: 'line',
-                        scaleID: "x",
-                        borderColor: 'rgba(255, 100, 0, 0.4)',
-                        borderWidth: 8,
-                        value: new Date(),
-                        label:{
-                            rotation:90,
-                            enabled:true,
-                            position:"start",
-                            content: "NOW",
-                        }
+            tooltip: {
+                callbacks: {
+                    beforeLabel: function (ctx) {
+                        let item = ctx.raw.price;
+                        return [
+                            item.spotprice.toFixed(2)+ ' Spot Price',
+                            item.elcert.toFixed(2)+ ' El.Certificats',
+                            item.vat.toFixed(2) + ' VAT',
+                            ""
+                        ]
                     },
-                    thisHour: {
-                        type: 'box',
-                        //scaleID: "x",
-                        borderColor: 'rgba(0, 0, 0, 0.2)',
-                        backgroundColor:'rgba(0, 0, 0, 0.2)',
-                        borderWidth: 1,
-                        xMin: new Date().setMinutes(0, 0, 0),
-                        xMax: new Date().setMinutes(60,0,0),
-                        yMin: function(ctx) {
-                            return ctx.chart.scales.y.min;
-                        },
-                        yMax: function(ctx) {
-                            return ctx.chart.scales.y.max;
-                        },
-                    }
+                    label: function (ctx) {
+                        return ctx.raw.price.totalprice.toFixed(2) + ' Total Price'
+                    },
                 }
-            }*/
+            }
+        
         },
         events: ['click', 'touchstart', 'touchmove', 'touchend'],
         onClick: (e) => {
@@ -169,18 +174,18 @@ function hourlyChartInit(){
                 let deltaX = pluginOptions.startX - pluginOptions.endX;
                 let deltaY = pluginOptions.startY - pluginOptions.endY;
                 if (deltaX < -300){
-                    $('#log').text($('#log').text()+"right "+deltaX+'\r\n')
+                    //$('#log').text($('#log').text()+"right "+deltaX+'\r\n')
                     getPrices(-1);
                 }
                 if (deltaX > 300){
-                    $('#log').text($('#log').text()+"left "+deltaX+'\r\n')
+                    //$('#log').text($('#log').text()+"left "+deltaX+'\r\n')
                     getPrices(+1);
                 }
                 if (deltaY < -300){
-                    $('#log').text($('#log').text()+"down "+deltaY+'\r\n')
+                    //$('#log').text($('#log').text()+"down "+deltaY+'\r\n')
                 }
                 if (deltaY > 300){
-                    $('#log').text($('#log').text()+"up "+deltaY+'\r\n')
+                    //$('#log').text($('#log').text()+"up "+deltaY+'\r\n')
                     hourlyChart.options.zoomed = ! hourlyChart.options.zoomed;
                     setScale(hourlyChart);
                     hourlyChart.update();
@@ -211,11 +216,30 @@ function dailyChartInit() {
             label:"Min",
             parsing: {yAxisKey: 'min'},
             borderColor: "rgba(0,153,0,0.5)",
-            backgroundColor:"rgba(224,224,224,0.5)",
-            fill:+1
+            fill:+2,
+            cubicInterpolationMode: 'monotone',
+            segment: {
+                backgroundColor: function(ctx){
+                    let month = +ctx.p0.raw.date.slice(5,7);
+                    if (month % 2) 
+                        return "rgba(255,228,181,0.5)"
+                    return "rgba(175,238,238,0.5)"
+                },
+            }
+
+        },{
+            label:"Average",
+            parsing: {yAxisKey: 'avg'},
+            cubicInterpolationMode: 'monotone',
+            borderColor: "rgba(0,0,0,0.5)",
+            backgroundColor: "rgba(0,0,0,0.5)",
+            borderDash:[5,5],
+            pointStyle:false,
+            fill:false,
         },{
             label:"Max",
             parsing: {yAxisKey: 'max'},
+            cubicInterpolationMode: 'monotone',
             borderColor: "rgba(204,0,0,0.5)",
             backgroundColor: "rgba(204,0,255,0.5)",
             fill:2
@@ -223,8 +247,8 @@ function dailyChartInit() {
     };
 
     var dOpt = {
-        animation : false,
         parsing: {xAxisKey: 'date'},
+        animation:false,
         scales: {
             y: {grid: {
                     lineWidth: function(ctx) {
@@ -248,7 +272,12 @@ function dailyChartInit() {
                     }
                 }
             },
-            x:{ grid:{
+            x:{ autoSkip:false,
+                type:'time',
+                time:{
+                    unit:'day',
+                },
+                /*grid:{
                     drawTicks:false,
                     color: function(ctx) {
                         if (ctx.type != "tick")
@@ -262,17 +291,17 @@ function dailyChartInit() {
                         if (ctx.type != "tick")
                             return;
                         var i = ctx.index;
-                        if (ctx.tick.label.length > 2 /*&& i != ctx.chart.scales.x.max*/)
+                        if (ctx.tick.label.length > 20)// && i != ctx.chart.scales.x.max)
                             return 5;
                         if (ctx.tick.label)
                             return 1;
                         return 0;
                     }
-                },
+                },*/
                 ticks: {
                     autoSkip:false,
                     font:fontSize,
-                    callback: function(value, index, ticks) {
+                    /*callback: function(value, index, ticks) {
                         var label = this.getLabelForValue(value);
                         dt = new Date(label);
                         //print(dt)
@@ -280,27 +309,29 @@ function dailyChartInit() {
                         if (dt.getDate() == 1)
                             return moment(dt).format("MMM'YY");
                         return moment(dt).format('DD');
-                    }
+                    }*/
                 }
             }
         },
         plugins: {
             legend: false,
         },
+        interaction: {
+            mode: 'nearest',
+            axis: 'x',
+        },
         onClick: (e) => {
             const canvasPosition = Chart.helpers.getRelativePosition(e, dailyChart);
 
             // Substitute the appropriate scale IDs
-            const dataX = dailyChart.scales.x.getValueForPixel(canvasPosition.x);
-            const dataY = dailyChart.scales.y.getValueForPixel(canvasPosition.y);
+            const dataX = dailyChart.scales.x.getValueForPixel(canvasPosition.x + this.innerWidth/66);
+            //const dataY = dailyChart.scales.y.getValueForPixel(canvasPosition.y);
             selectedDate = new Date(dailyChart.scales.x.getLabelForValue(dataX));
-            //print(selectedDate);
             getPrices(0, selectedDate);
         }
     }
     
     dailyChart = new Chart("dailyChart", {type: "line", data:dData,  options: dOpt});
-    //$("#dailyChart").hide()
 }
 
 // ==========================================================================================
@@ -330,19 +361,28 @@ function monthlyChartInit() {
     };
 
     var mOpt = {
-        parsing: {xAxisKey: 'month'},
+        parsing: {xAxisKey: 'date'},
         scales: {
             y:{ ticks:{
                     font:fontSize,
                     autoSkip:false,
                 }
             },
-            x:{ grid:{
+            x:{ autoSkip:false,
+                type:'time',
+                time:{
+                    unit:'month',
+                    tooltipFormat:"MMMM YYYY",
+                    displayFormats: {
+                        month:"MMM'YY"
+                    }
+                }, 
+                grid:{
                     drawTicks:false,
                     color: function(ctx) {
                         if (ctx.type != "tick")
                             return ;
-                        if (ctx.tick.label.slice(0,3) == 'Jan' )
+                        if (new Date(ctx.tick.value).getMonth() == 0 )
                             return "rgba(0,0,0,0.4)";
                         return "rgba(0,0,0,0.2)";
                     },
@@ -350,20 +390,19 @@ function monthlyChartInit() {
                         //print(this.dailyChart);
                         if (ctx.type != "tick")
                             return;
-                        var i = ctx.index;
-                        if (i !=0 && ctx.tick.label.slice(0,3) == 'Jan' )
-                            return 5;
+                        if (ctx.index !=0 && new Date(ctx.tick.value).getMonth() == 0 )
+                            return 3;
                         return 1;
                     }
                 },
                 ticks: {
                     autoSkip:false,
                     font:fontSize,
-                    callback: function(value, index, ticks) {
+                    /*callback: function(value, index, ticks) {
                         var label = this.getLabelForValue(value);
                         dt = new Date(label);
                         return moment(dt).format("MMM'YY");
-                    }
+                    }*/
                 }
             }
         },
@@ -377,87 +416,92 @@ function monthlyChartInit() {
 
 // ==========================================================================================
 function getPrices(delta=0, day=null){
-    let tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate()+1);
-    tomorrow = strDate(tomorrow);
+    $("#next").addClass('disabled');
+    $("#prev").addClass('disabled');
+    let tomorrow = strDate(new Date().setHours(24,0,0,0));
+    //dailyChart.options.animation = (day != null);
 
-    zone = $("#zoner").val();
-    params = {"zone":zone};
     if (day == null) {
-        day = $("#lblDate").val()
-        if (delta == 1 && strDate(day) == tomorrow)
-            return
-        day.setDate(day.getDate()+delta);
+        day = currentDate;
     }
-    day = strDate(day);
-    if (day == tomorrow) {
+    /*if (delta == 1 && strDate(day) == tomorrow)
+        return*/
+    ;
+    //day = strDate(day.setHours(24*delta));
+    /* if (day == tomorrow) {
+        //request current date data
+        day = null;
         $("#next").removeClass('btn-primary');
         $("#next").addClass('btn-outline-primary disabled');
     }
     else {
-        params["date"] =  day;
         $("#next").removeClass('disabled btn-outline-primary');
         $("#next").addClass('btn-primary');
-    } 
+    } */
 
-    print("Requesting hourly prices for zone "+zone +" & date " + day)
-    $.getJSON("/api/elprice",params, showHourlyPrices)
+    requestHourlyPrice(day.setHours(24*delta), showHourlyPrices);
 }
 
 // ==========================================================================================
-function showHourlyPrices (values, status){
-    values.map(function(o){o.dt = new Date(o.date+" "+o.hour+":00:00");/*o.label = strDate(o.dt,"YY-MM-DD HH:mm");*/ return o})
-    $("#lblDate").val(values[values.length-2].dt);
-    $("#lblDate").text(strDate(values[values.length-2].dt, 'MMMM Do, YYYY'));
-    //print( values);
-
+function showHourlyPrices (resp){
+    $("#prev").removeClass('disabled');
+    if (isTomorrowRequested()) {
+        $("#next").removeClass('btn-primary');
+        $("#next").addClass('btn-outline-primary disabled');
+    }
+    else {
+        $("#next").removeClass('disabled btn-outline-primary');
+        $("#next").addClass('btn-primary');
+    } 
+    //print(resp);
+    //resp.hours[6].price.totalprice = -20;
+    //resp.min = resp.hours[6];
+    currentDate = new Date(resp.curdate);
+    $("#lblDate").text(strDate(resp.curdate, 'MMMM Do, YYYY'));
 
     // calculate Minimum value
-    let min = Math.min(...values.map(o => o.value));
+    let min = resp.min.price.totalprice;
     hourlyChart.min = min;
-    $("#lblMinP").text(min);
-    minT = values.find(v => v.value == min).dt
-    $("#lblMinT").text(hourRange(minT));
+    $("#lblMinP").text(min.toFixed(2));
+    $("#lblMinT").text(hourRange(resp.min.dt));
 
     // calculate Maximum value
-    let max = Math.max(...values.map(o => o.value));
-    //hourlyChart.max = max;
-    $("#lblMaxP").text(max);
-    $("#lblMaxT").text(hourRange(values.find(v => v.value == max).dt));
+    let max = resp.max.price.totalprice;
+    $("#lblMaxP").text(max.toFixed(2));
+    $("#lblMaxT").text(hourRange(resp.max.dt));
 
     // calcualte chart scales
-    let yMax = (Math.floor(max*1.02 / 50)+1)*50;
+    let yMax = roundUpBy(max, 50);
     yMax = yMax < 100 ? 100 : yMax;
     // check if last number will be under zone select then apply ratio
-    ratio = (Math.max(...values.slice(-6).map(o => o.value))) / yMax
+    /*ratio = (Math.max(...values.slice(-6).map(o => o.value))) / yMax
     if (ratio > 0.8){
         yMax = (Math.floor((yMax * (ratio + 0.20)) / 25)+1)*25;
-    }
+    }*/
     let yMin = 0
-    if (min < 0) {
-        yMin = (Math.floor(min / 10))*10;
-    }
+    if (min < 0) { yMin = roundDownBy(min, 10); }
     // set scales for zooming in and out
     hourlyChart.yMax = yMax;
     hourlyChart.yMin = yMin;
-    hourlyChart.yZoomMin = (Math.floor(min / 5))*5;
-    let yZoomMax = (Math.floor(max*1.02 / 5)+1)*5;
+    /*let yZoomMax = roundUpBy(max, 5);
     ratio = (Math.max(...values.slice(-6).map(o => o.value))) / yZoomMax
     if (ratio > 0.8){
         yZoomMax = (Math.floor(max * (ratio + 0.25) / 5)+1)*5
-    }
-    hourlyChart.yZoomMax = yZoomMax
+    }*/
+    hourlyChart.yZoomMin = roundDownBy(min, 5);
+    hourlyChart.yZoomMax = roundUpBy(max/0.9, 5);
     setScale(hourlyChart);
     
     // Prepare data for chart
-    hourlyChart.data.datasets[0].data = values;
+    hourlyChart.data.datasets[0].data = resp.hours;
     
     annots = {
         nowLine:{
             type: 'line',
             scaleID: "x",
-            borderColor: 'rgba(255, 100, 0, 0.4)',
-            borderWidth: 8,
+            borderColor: 'rgba(255, 100, 0, 0.8)',
+            borderWidth: 4,
+            drawTime:'afterDraw',
             value: new Date(),
             label:{
                 rotation:90,
@@ -466,104 +510,93 @@ function showHourlyPrices (values, status){
                 content: "NOW",
             }
         },
-        thisHour: {
+        thisHour_up: {
             type: 'box',
-            //scaleID: "x",
-            borderColor: 'rgba(0, 0, 0, 0.2)',
-            backgroundColor:'rgba(0, 0, 0, 0.2)',
+            borderColor: 'rgba(0, 0, 0, 0.3)',
+            backgroundColor:'rgba(0, 0, 0, 0.1)',
             borderWidth: 1,
-            xMin: new Date().setMinutes(0, 0, 0),
-            xMax: new Date().setMinutes(60,0,0),
+            drawTime:'afterDraw',
+            xMin: new Date().setMinutes( 0, 0, 0),
+            xMax: new Date().setMinutes(60, 0, 0),
             yMin: function(ctx) {
                 return ctx.chart.scales.y.min;
             },
             yMax: function(ctx) {
                 return ctx.chart.scales.y.max;
             },
-        }
+        },
     };
 
-    /*if (values.length > 26) {
-        annots.tomorrow = createLabelAnnot(
-            values.map(function (e) {return e.hour;}).indexOf(values.find(v => v.dt.getHours() == 0).hour), 
-            'TOMORROW');
-    }*/
+    if (resp.count > 26) {
+        annots.tomorrow = createLabelAnnot(resp.hours[resp.count-2].date,'TOMORROW');
+    }
 
     // check if showing today's data
-    let nowIndex = findNowIndex(values);
-    if (values[nowIndex]) {
-        //calculate position of "now" indicator
-        $("#lblCurP").text(values[nowIndex].value);
-        $("#lblCurT").text(hourRange(values[nowIndex].dt));
-        $("#divNow").show();
-        hourlyChart.options.plugins.annotation = {annotations: annots};
-        //hourlyChart.options.plugins.annotation.annotations.nowLine.display = true;
-        //hourlyChart.options.plugins.annotation.annotations.thisHour.display = true;
+    if (resp.cur == undefined){
+        $("#divNow").hide();
+        hourlyChart.options.plugins.annotation = false;
     }
     else{
-        $("#divNow").hide();
-        //hourlyChart.options.plugins.annotation.annotations.nowLine.display = false;
-        //hourlyChart.options.plugins.annotation.annotations.thisHour.display = false;
-        hourlyChart.options.plugins.annotation = false;
+        //calculate position of "now" indicator
+        $("#lblCurP").text(resp.cur.price.totalprice.toFixed(2));
+        $("#lblCurT").text(hourRange(resp.cur.dt));
+        $("#divNow").show();
+        hourlyChart.options.plugins.annotation = {annotations: annots};
     }
     
     hourlyChart.update();
+    hourlyChart.options.animation.onComplete = function(chart, currentStep,initial,numSteps){
+        //print('animation accomplished')
+    }
 
     // update Daily chart after Hourly chart is ready 
-    zone = $("#zoner").val();
-    date = strDate($("#lblDate").val())
-    params = {"zone":zone, "date": date};
-    print("Requesting daily prices for zone "+zone +" & date " + date)
-    $.getJSON("/api/dailystats", params, showDailyStats)	
-    
+    requestDailyStats(strDate(currentDate), showDailyStats);    
 };		
 
 // ==========================================================================================
-function showDailyStats (values, status){
-    values.map(function(o){o.dt = new Date(o.date); return o})
-    //print(values)
+function showDailyStats (resp, status){
+    //print(resp)
 
     //calculate boundaries
     let y = dailyChart.options.scales.y;
-    let min = Math.min(...values.map(o => o.min));
     y.min = 0;
-    if (min < 0) {
-        y.min = (Math.floor(min / 10))*10;
+    if (resp.min < 0) {
+        y.min = (Math.floor(resp.min / 10))*10;
     }
-    let max = Math.max(...values.map(o => o.max));
-    y.max = (Math.floor(max / 10)+1)*10;;
+    y.max = (Math.floor(resp.max / 10)+1)*10;;
 
     // prepare dataset
-    dateLabels = []
-    for (let d = values[0].dt; 
-        d <= values[values.length-1].dt; 
+    let dateLabels = [];
+    for (let d = new Date(resp.first); 
+        d <= new Date(resp.last); 
         d.setDate(d.getDate() + 1)){
-            dateLabels.push(strDate(d))
-        }
-    dailyChart.data.labels = dateLabels;
-    dailyChart.data.datasets[0].data = values;
-    dailyChart.data.datasets[1].data = values;
-
-
-    // Create labels for 1st day of each month on chart + for the first tick  
-    var annots = values.filter(item => item.dt.getDate() == 1).map(o => o.date);
-    annots = annots.reduce((a, v) => ({ ...a, [v]: null}), {});
-    annots[values[0].date] = {};
-    for (var key in annots) {
-        annots[key] = createLabelAnnot(values.map(function (e) {return e.date;}).indexOf(key),strDate(key,"MMMM YYYY"),10)
+        dateLabels.push(strDate(d))
     }
+    dailyChart.data.labels = dateLabels;
+    dailyChart.data.datasets[0].data = resp.days;
+    dailyChart.data.datasets[1].data = resp.days;
+    dailyChart.data.datasets[2].data = resp.days;
+
+
     // add annotaition for the currently displayed date
+    let  annots = {};
+    for (let nextMonth = new Date(resp.first);
+        nextMonth < new Date(resp.last);
+        nextMonth = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 1)) {
+            annots[strDate(nextMonth)] = createLabelAnnot(strDate(nextMonth), strDate(nextMonth,"MMMM YYYY"));
+        }
+    annots[resp.first] = createLabelAnnot(resp.first,strDate(resp.first,"MMMM YYYY"), xAdj=-8);
     annots['lineCurrentDate'] = {
         type: 'line',
         scaleID: "x",
         borderColor: 'rgba(178, 102, 255, 0.5)',
         borderWidth: 8,
-        value: dateLabels.findIndex(function(val) { return val == strDate($("#lblDate").val()); }),
+        value: strDate(currentDate),
         label:{
             rotation:90,
             enabled:true,
             position:"start",
-            content: strDate($("#lblDate").val(),"DD MMM YYYY"),
+            content: strDate(currentDate,"DD MMM YYYY"),
         }
     };
     //print(annots)
@@ -577,37 +610,36 @@ function showDailyStats (values, status){
 // ==========================================================================================
 function getMonthlyStats(){
     zone = $("#zoner").val();
-    date = strDate($("#lblDate").val())
+    date = strDate(currentDate)
     params = {"zone":zone, "date": date};
     print("Requesting monthly prices for zone "+zone)
-    $.getJSON("/api/monthlystats", params, showMonthlyStats)
+    $.getJSON("/api/monthlytibberstats", params, showMonthlyStats)
     $('#btnMontly').addClass('d-None')
 }
 // ==========================================================================================
-function showMonthlyStats (values, status){
-    values.map(function(o){o.label = new Date(o.year,o.month-1); return o})
-    print(values)
+function showMonthlyStats (resp, status){
+    print(resp)
 
     //calculate boundaries
-    var min = Math.min(...values.map(o => o.min));
-    var max = Math.max(...values.map(o => o.max));
+    //var min = resp.min
+    //var max = resp.max;
     let y = monthlyChart.options.scales.y; 
-    y.max = (Math.floor(max / 50)+1)*50;
+    y.max = roundUpBy(resp.max, 50);
     y.min = 0;
-    if (min < 0) {
-        y.min = (Math.floor(min / 50))*50;
+    if (resp.min < 0) {
+        y.min = roundDownBy(resp.min, 50);
     }
 
     let ds = monthlyChart.data.datasets; 
-    ds[0].data = values;
-    ds[1].data = values;
-    ds[2].data = values;
+    ds[0].data = resp.months;
+    ds[1].data = resp.months;
+    ds[2].data = resp.months;
 
-    annots = values.filter(function(val, m, vals){
+    /*annots = values.filter(function(val, m, vals){
         if (m > 0 && m < vals.length-1 && (vals[m+1].max < val.max) && (val.max > vals[m-1].max )){
             return {"x":val.month,"y":val.max};
         }
-    })
+    })*/
     //print(annots)
     /*for (var m = 1; m < values.length-1; m++){
 //        values[m].max = +values[m].max;
