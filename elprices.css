@@ -1,4 +1,4 @@
-
+#lblDate,
 div:has(.price) {
     font-size: 2.5vw;
     text-align: center;
@@ -8,14 +8,13 @@ div:has(.price) {
     width: 100%;
 }
 .price > label {
-    font-size: 4vw;
     font-weight: bold;
 }
 .price:has(#lblMinP) {
-    color:darkgreen;
+    color:green;
 }
 .price:has(#lblCurP) {
-    color:darkslateblue;
+    color:blue;
 }
 .price:has(#lblMaxP) {
     color:darkred;
@@ -29,14 +28,21 @@ div:has(.price) {
 .canvas {
     width: 100%;
 }
-
+body{
+    height: 100%;
+		margin: 0;
+    display: flex;
+    flex-direction: column;
+}
 footer {
-    font-size: 1.5vw;
+    margin-top: auto;
+    font-size: 2vw;
     background-color: lightgray;
 }
 
 #zoner {
-    font-size: 3vw;
+    font-size: 2.5vw;
+    margin-right: 1vw;
     padding: 0.5vw;
 }
 

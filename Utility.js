@@ -2,16 +2,22 @@ function strDate(date, fortmat = 'YYYY-MM-DD') {
     return moment(new Date(date)).format(fortmat);
 }
 
-function hourRange(dt){
-    if (new Date().setHours(0,0,0,0) < new Date(dt).setHours(0,0,0,0)){
+function hourRange(dt, dataFormat = ""){
+    if (dataFormat == "" && new Date().setHours(0,0,0,0) < new Date(dt).setHours(0,0,0,0)){
         return "TOMORROW";
     }
     let curH = new Date(dt).setMinutes(0, 0, 0);
-    return strDate(curH,"HH:mm-") + strDate(new Date(curH).setMinutes(60),"HH:mm");
+    return strDate(curH,dataFormat+"HH:mm-") + strDate(new Date(curH).setMinutes(60),"HH:mm");
 }
 
 function fontSize (context) {
-    return {size: Math.round($(window).width() / 56)}
+    return {size: Math.round(context.chart.width / 52)};
+    //return {size: Math.round($(window).width() / 56)}
+};
+
+function fontSize1vw (context) {
+    return {size: Math.round(context.chart.width / 78)};
+    //return {size: Math.round($(window).width() / 56)}
 };
 
 function print(str){
@@ -23,7 +29,7 @@ function checkMinPrice(val, min){
 }
 
 function roundUpBy(val, step){
-    return (Math.floor(val*1.02 / step)+1)*step;
+    return (Math.floor(val / step)+1)*step;
 }
 
 function roundDownBy(val, step){

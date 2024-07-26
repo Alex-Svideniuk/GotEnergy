@@ -1,4 +1,4 @@
-import requests, time
+import requests, pytz, logging
 from datetime import date, timedelta, datetime, time as t
 import mysql.connector
 
@@ -18,7 +18,7 @@ class dbEnergy:
             self.cursor = self.db.cursor(buffered=True,dictionary=True)
         except:
             self.db = None
-            print("DB not connected")
+            logging.error("DB not connected")
 
     def endSession(self):
         if self.db:
@@ -50,7 +50,7 @@ class dbEnergy:
             return self.EMPTY_HOURS
     #=========================================================================================================
     def __getDummy(self):
-        print("Sending dummy data")
+        logging.debug("Sending dummy data")
         values = [{"value":0},{"value":0},{"value":0},{"value":0},{"value":30},{"value":60},{"value":90},{"value":60},{"value":30},{"value":0},{"value":-30},{"value":-60},{"value":-90},{"value":-60},{"value":-30},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0},{"value":0}]
         dt = datetime.now()
         dt = dt.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -67,12 +67,12 @@ class dbEnergy:
         count = self.__getCurrCount("currPrices", "zone = %s" % (zone))
 
         if count == 0:
-            print ("No today data in DB. Reading from Web...")
+            logging.warning ("No today data in DB. Reading from Web...")
             prices = self.__getNStoreWebHourlyPrise(date.today(), zone)
             count = len(prices)
 
         if count!= 0 and count <= 24 and datetime.now().hour > 12:
-            print ("No tommorrow data in DB. Reading from Web...")
+            logging.warning ("No tommorrow data in DB. Reading from Web...")
             self.__getNStoreWebHourlyPrise(date.today() + timedelta(days=1), zone)
 
         count = self.__getCurrCount("currPrices", "zone = %s" % (zone))
@@ -89,7 +89,7 @@ class dbEnergy:
         cond = "zone = %s AND date = '%s'" % (zone,day)
         count = self.__getCurrCount(table, cond)
         if count == 0:
-            print ("No data in DB for %s. Reading from Web..." % (day))
+            logging.warning ("No data in DB for %s. Reading from Web..." % (day))
             self.__getNStoreWebHourlyPrise(day, zone)
 
         return self.__wrapDailyValues(self.__getGetHourlyPriceDB(table, cond),provider)
@@ -211,9 +211,9 @@ class dbEnergy:
             self.cursor.executemany("""INSERT IGNORE INTO hourlyPrices (zone, date, hour, value) VALUES (%s, %s, %s, %s)""", 
                                 hprises)
             self.db.commit()
-            print ("New data populated to DB")
+            logging.info ("New Hours Added to DB zone=%s date='%s'" % (zone, day))
         else:
-            print("Now Web Data awailable for %s" % day)
+            logging.warning("No Web data is awailable for %s" % day)
         return hprises
 
     #===========================================================================================================
@@ -222,22 +222,82 @@ class dbEnergy:
             'zone': zone,
             'date': day,
         }
-        #print("Request day" + parapms["date"])
+        logging.debug("Request day %s" % day)
         res = requests.post("https://www.goteborgenergi.se/external-web/Api/HourlyPricesStatisticsElement/GetHourlyPrices",parapms)
         dailyValues = []
+        tz = pytz.timezone('Europe/Stockholm')
         if res.status_code == 200:
             values = res.json()["result"]["values"]
             for v in values:
-                dt = datetime.strptime(v['dateTime'],"%Y-%m-%d %H:%M") + timedelta(hours=2)
+                dt = tz.localize(datetime.strptime(v['dateTime'],"%Y-%m-%d %H:%M"))
+                dt = dt + dt.utcoffset()
                 dailyValues.append((zone, dt.strftime("%Y-%m-%d"), dt.hour, v['value']))
                 
-            #print(dailyValues)
+            #logging.debug(dailyValues)
         return dailyValues
 
+    #===========================================================================================================
+    def updateTibberFee(self):
+        logging.info('Checking tibber fees')
+        fees = self.__getTibberFees(3)
+        if fees != None:
+            affected_rows = self.cursor.executemany("""INSERT IGNORE INTO tibber_fee (year, month, elcertificates) VALUES (%s, %s, %s)""", 
+                fees)
+            self.db.commit()
+            logging.info ("%s new rows were added to Tibber Fees" % self.cursor.rowcount)
+        else:
+            logging.warning("No Tibber Fees data is awailable")
+
+
+    def __getTibberFees(self, zone):
+        codes = [97232, 83751, 11543, 21115]
+        res = requests.get("https://tibber.com/se/api/lookup/price-overview?postalCode=%s" % codes[zone-1])
+        if res.status_code != 200:
+            return None
+        values = res.json()['energy']
+        res = []
+        for v in values['last12Months']:
+            res.append((v['year'],v['month'],round(v['priceComponents'][1]['priceExcludingVat']*100,2)))
+        
+        v = values['todayHours'][0]
+        dt = v['date'].split('-')
+        res.append((dt[0],dt[1],round(v['priceComponents'][1]['priceExcludingVat']*100,2)))
+        return res
+        
+    #===========================================================================================================
+    def populateHourlyPrices(self):
+        logging.info('Checking hourly prices')
+        for zone in range(1,5):
+            misDates = self.__getMissingDates(zone)
+            if not misDates:
+                continue
+            logging.debug("Missing hourly date for zone=%s and dates=%s",zone, misDates)
+            for d in misDates:
+                self.__getNStoreWebHourlyPrise(d,zone)
+
+
+    def __getMissingDates(self, zone):
+        startDate = '2023-01-01'
+        sql  = "WITH recursive Date_Ranges AS (select '%s' as date union all select date + interval 1 day from Date_Ranges where date < DATE_ADD(CURDATE(), INTERVAL 1 DAY)) " % startDate
+        sql += "select date from Date_Ranges where date not in "
+        sql += "(select date from GoteborEnergy.hourlyPrices where zone =%s and date >= '%s' group by zone, date having count(hour)=24);" % (zone, startDate)
+        self.cursor.execute(sql)
+        misDates = self.cursor.fetchall()
+        return [x['date'] for x in misDates]
+
+
+#tibber API:
+#SE1 https://tibber.com/se/api/lookup/price-overview?postalCode=97232
+#SE2 https://tibber.com/se/api/lookup/price-overview?postalCode=83751
+#SE3 https://tibber.com/se/api/lookup/price-overview?postalCode=11543
+#SE4 https://tibber.com/se/api/lookup/price-overview?postalCode=21115
+
 #mydb = dbEnergy()
+#mydb.updateTibberFee()
+#mydb.populateHourlyPrices()
 #mydb.getCurrentPrise(zone=3)
 #mydb.getCurrentTibberPrise(zone=3)
-#mydb.getDayPrise(zone=3,day='2023-08-08')
-#mydb.getDayTibberPrise(zone=3,day='2023-08-08')
-#mydb.getDailyStats(zone=3,day='2023-07-15')
-#mydb.getDailyTibberStats(zone=3,day='2023-07-15')
+#mydb.getDayPrise(zone=3, day='2023-08-08')
+#mydb.getDayTibberPrise(zone=3, day='2023-10-27')
+#mydb.getDailyStats(zone=3, day='2023-07-15')
+#mydb.getDailyTibberStats(zone=3, day='2023-07-15')

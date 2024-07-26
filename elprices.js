@@ -106,7 +106,7 @@ function hourlyChartInit(){
                 ticks: {
                     autoSkip:false,
                     font: function(ctx){
-                        let fnt = fontSize();
+                        let fnt = fontSize(ctx);
                         if (new Date(ctx.tick.value).getHours() == 0) {
                             //print(strDate(dt,"DD MMM"))
                             fnt['weight']='bolder';
@@ -131,7 +131,19 @@ function hourlyChartInit(){
         plugins: {
             legend: false,
             tooltip: {
+                //xAlign:'left',
+                titleFont: fontSize,
+                bodyFont: fontSize,
                 callbacks: {
+                    title: function(ctx){
+                        return hourRange(ctx[0].raw.dt,"DD MMM'YY ");
+                    },
+                    afterTitle: function(ctx){
+                        delta = Math.floor((new Date(ctx[0].raw.dt) - new Date())/1000/60);
+                        if (delta > 0) {
+                            return "in " + Math.floor(delta/60) + "h " + delta%60 + "min"
+                        }
+                    },
                     beforeLabel: function (ctx) {
                         let item = ctx.raw.price;
                         return [
@@ -142,7 +154,7 @@ function hourlyChartInit(){
                         ]
                     },
                     label: function (ctx) {
-                        return ctx.raw.price.totalprice.toFixed(2) + ' Total Price'
+                        return " "+ctx.raw.price.totalprice.toFixed(2) + ' Total Price'
                     },
                 }
             }
@@ -150,11 +162,12 @@ function hourlyChartInit(){
         },
         events: ['click', 'touchstart', 'touchmove', 'touchend'],
         onClick: (e) => {
+            hourlyChart.options.plugins.tooltip.enabled = true;
             if (e.native.detail == 2) {
                 hourlyChart.options.zoomed = ! hourlyChart.options.zoomed;
                 setScale(hourlyChart);
-                hourlyChart.update();
             }
+            hourlyChart.update();
         }
     }
     plugin = [{
@@ -423,21 +436,7 @@ function getPrices(delta=0, day=null){
 
     if (day == null) {
         day = currentDate;
-    }
-    /*if (delta == 1 && strDate(day) == tomorrow)
-        return*/
-    ;
-    //day = strDate(day.setHours(24*delta));
-    /* if (day == tomorrow) {
-        //request current date data
-        day = null;
-        $("#next").removeClass('btn-primary');
-        $("#next").addClass('btn-outline-primary disabled');
-    }
-    else {
-        $("#next").removeClass('disabled btn-outline-primary');
-        $("#next").addClass('btn-primary');
-    } */
+    };
 
     requestHourlyPrice(day.setHours(24*delta), showHourlyPrices);
 }
@@ -473,21 +472,11 @@ function showHourlyPrices (resp){
     // calcualte chart scales
     let yMax = roundUpBy(max, 50);
     yMax = yMax < 100 ? 100 : yMax;
-    // check if last number will be under zone select then apply ratio
-    /*ratio = (Math.max(...values.slice(-6).map(o => o.value))) / yMax
-    if (ratio > 0.8){
-        yMax = (Math.floor((yMax * (ratio + 0.20)) / 25)+1)*25;
-    }*/
     let yMin = 0
     if (min < 0) { yMin = roundDownBy(min, 10); }
     // set scales for zooming in and out
     hourlyChart.yMax = yMax;
     hourlyChart.yMin = yMin;
-    /*let yZoomMax = roundUpBy(max, 5);
-    ratio = (Math.max(...values.slice(-6).map(o => o.value))) / yZoomMax
-    if (ratio > 0.8){
-        yZoomMax = (Math.floor(max * (ratio + 0.25) / 5)+1)*5
-    }*/
     hourlyChart.yZoomMin = roundDownBy(min, 5);
     hourlyChart.yZoomMax = roundUpBy(max/0.9, 5);
     setScale(hourlyChart);
@@ -544,6 +533,7 @@ function showHourlyPrices (resp){
         hourlyChart.options.plugins.annotation = {annotations: annots};
     }
     
+    hourlyChart.options.plugins.tooltip.enabled = false;
     hourlyChart.update();
     hourlyChart.options.animation.onComplete = function(chart, currentStep,initial,numSteps){
         //print('animation accomplished')
@@ -634,19 +624,6 @@ function showMonthlyStats (resp, status){
     ds[0].data = resp.months;
     ds[1].data = resp.months;
     ds[2].data = resp.months;
-
-    /*annots = values.filter(function(val, m, vals){
-        if (m > 0 && m < vals.length-1 && (vals[m+1].max < val.max) && (val.max > vals[m-1].max )){
-            return {"x":val.month,"y":val.max};
-        }
-    })*/
-    //print(annots)
-    /*for (var m = 1; m < values.length-1; m++){
-//        values[m].max = +values[m].max;
-        if ((values[m+1].max < values[m].max) && (values[m].max > values[m-1].max )){
-            print(values[m])
-        }
-    }**/
 
     //improve options
     monthlyChart.update();

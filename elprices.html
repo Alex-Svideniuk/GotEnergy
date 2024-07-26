@@ -35,19 +35,22 @@
 		<!-- Hoyrly Chart -->
 		<div class="d-flex flex-column flex-fill position-relative">
 			<canvas id="hourlyChart"></canvas>
+		</div>
+		<div class="d-flex justify-content-between">
+			<div> </div>
+			<!-- button block -->
+			<div class="d-flex justify-content-center btn-block">
+				<button id="prev" onclick="getPrices(-1)" class="btn btn-lg btn-primary">&lt; Prev</button>
+				<div class="align-self-center ms-3 me-3 "><label id="lblDate"></label> </div>
+				<button id="next" onclick="getPrices(+1)" class="btn btn-lg btn-outline-primary">Next &gt;</button>
+			</div>
 			<!-- Zone selection -->
 			<select id="zoner" class="select" onchange="getPrices()">
-				<option value="1">Zone 1</option>
-				<option value="2">Zone 2</option>
-				<option value="3" selected>Zone 3</option>
-				<option value="4">Zone 4</option>
+				<option value="1">SE1</option>
+				<option value="2">SE2</option>
+				<option value="3" selected>SE3</option>
+				<option value="4">SE4</option>
 			</select>
-		</div>
-		<!-- button block -->
-		<div class="d-flex justify-content-center btn-block ">
-			<button id="prev" onclick="getPrices(-1)" class="btn btn-lg btn-primary">&lt; Prev</button>
-			<div class="align-self-center ms-3 me-3 "><label id="lblDate"></label> </div>
-			<button id="next" onclick="getPrices(+1)" class="btn btn-lg btn-outline-primary">Next &gt;</button>
 		</div>
 		<!-- daily Chart -->
 		<div class="w-100">
@@ -61,6 +64,11 @@
 			</div>
 		</div>
 		<pre id="log" hidden></pre>
-	</div>	
+	</div>
+	<footer>
+		<div class="p-2  d-flex flex-row justify-content-end">
+			Created by Alex Svideniuk
+		</div>
+	</footer>	
   </body>
 </html
