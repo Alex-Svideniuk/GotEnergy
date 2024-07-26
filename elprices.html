@@ -1,0 +1,65 @@
+<html>
+  <head>
+	<link rel="stylesheet" href="elprices.css">
+	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.0.0/jquery.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-modal/0.9.1/jquery.modal.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.18.1/moment.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.3.3/chart.umd.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/1.4.0/chartjs-plugin-annotation.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js" integrity="sha384-oBqDVmMz9ATKxIep9tiCxS/Z9fNfEXiDAYTujMAeBAsjFuCZSmKbSSUnQlmh/jp3" crossorigin="anonymous"></script>
+	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.min.js" integrity="sha384-cuYeSxntonz0PPNlHhBs68uyIAVpIIOZZ5JqeqvYYIcEL727kskC66kF92t6Xl2V" crossorigin="anonymous"></script>
+	<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@^1"></script>
+	<script src="Utility.js"></script>
+	<script src="elprices.js"></script>
+  </head>
+
+  <body>
+	<div class="p-1 d-flex flex-column justify-content-center w-100" style="width:960px;">
+		<!-- Statistics  -->
+		<div class="d-flex flex-row justify-content-between p-2">
+			<div class="flex-column  justify-content-center">
+				<div> Lowest price <label id="lblMinT"></label></div>
+				<div class="price"><label id="lblMinP">--.-</label> &ouml;re/kWh</div>
+			</div>
+			<div class="flex-column" id="divNow">
+				Current price <label id="lblCurT"></label><br>
+				<div class="price"><label id="lblCurP">--.-</label> &ouml;re/kWh</div>
+			</div>
+			<div class="flex-column">
+				Higest price <label id="lblMaxT"></label><br>
+				<div class="price"><label id="lblMaxP">---.-</label> &ouml;re/kWh</div>
+			</div>
+		</div>
+		<!-- Hoyrly Chart -->
+		<div class="d-flex flex-column flex-fill position-relative">
+			<canvas id="hourlyChart"></canvas>
+			<!-- Zone selection -->
+			<select id="zoner" class="select" onchange="getPrices()">
+				<option value="1">Zone 1</option>
+				<option value="2">Zone 2</option>
+				<option value="3" selected>Zone 3</option>
+				<option value="4">Zone 4</option>
+			</select>
+		</div>
+		<!-- button block -->
+		<div class="d-flex justify-content-center btn-block ">
+			<button id="prev" onclick="getPrices(-1)" class="btn btn-lg btn-primary">&lt; Prev</button>
+			<div class="align-self-center ms-3 me-3 "><label id="lblDate"></label> </div>
+			<button id="next" onclick="getPrices(+1)" class="btn btn-lg btn-outline-primary">Next &gt;</button>
+		</div>
+		<!-- daily Chart -->
+		<div class="d-none w-100">
+			<div class="d-flex mt-4">
+				<canvas id="dailyChart"></canvas>
+			</div>
+			<!-- monthly Chart -->
+			<div class="d-flex mt-4 w-100">
+				<button id="btnMontly" onclick="getMonthlyStats()" class="btn btn-lg btn-warning w-100">Show Montly Statistics</button>
+				<canvas id="monthlyChart" class="d-none"></canvas>
+			</div>
+		</div>
+		<pre id="log" hidden></pre>
+	</div>	
+  </body>
+</html

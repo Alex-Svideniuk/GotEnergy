@@ -3,93 +3,72 @@ from datetime import date, timedelta, datetime, time as t
 import falcon, json
 from myslq import dbEnergy
 
-#falcon.Request.uri
-
-class CurrentEnergyPricies(object):
-    def on_get(self, req, resp):
+#==================================================================================================
+class apiEndpoint(object):
+    def on_get(self, req, resp, endpoint):
         start_time = time.time()
-        print(req.params)
-        zone = validateZone(req.params)
-        if zone == None:
-            print("worng zone")
-            resp.status = falcon.HTTP_400
-            return
+        print("API request '/api/%s' with '%s'" % (endpoint,req.params))
 
-        day = validateDate(req.params)
-        if day == None:
-            print("worng date")
-            resp.status = falcon.HTTP_400
-            return 
+        zone = req.get_param_as_int("zone", True, 1, 4)
 
-        try:            
-            client = dbEnergy()
-            if day == date.today().strftime("%Y-%m-%d"):
-                print ("Сurrent date requested")
+        client = dbEnergy()
+        if (endpoint == 'dailystats'):
+            day = req.get_param_as_date("date", format_string='%Y-%m-%d', required=True)
+            results = client.getDailyStats(zone, day)
+            resp.status = falcon.HTTP_200
+
+        elif (endpoint == 'monthlystats'):
+            results = client.getMonthlyStats(zone)
+            resp.status = falcon.HTTP_200
+
+        elif (endpoint == 'elprice'):
+            day = req.get_param_as_date("date", format_string='%Y-%m-%d', required=False)
+            if day == None:
+                print ("Current date requested")
                 results = client.getCurrentPrise(zone)
             else:
                 results = client.getDayPrise(zone, day)
-            client.endSession()
-            resp.status = falcon.HTTP_200
-            resp.text = json.dumps(results, default=str)
-        except:
-            print("Error getting prices")
-            resp.status = falcon.HTTP_500
-        print("--- %s ms ---" % ((time.time() - start_time)*1000//1))
+            if results == None:
+                resp.status = falcon.HTTP_404
+            else:
+                resp.status = falcon.HTTP_200
 
-#==================================================================================================
-class getDailyStats(object):
-    def on_get(self, req, resp):
-        start_time = time.time()
-        print(req.params)
-        zone = validateZone(req.params)
-        if zone == None:
-            print("worng zone")
-            resp.status = falcon.HTTP_400
-            return
-
-        day = validateDate(req.params)
-        if day == None:
-            print("worng date")
-            resp.status = falcon.HTTP_400
-            return 
-
-        client = dbEnergy()
-        results = client.getDailyPrise(zone, day)
+        else: 
+            print("Endpoint not supported")
+            resp.status = falcon.HTTP_404
         client.endSession()
-        try:            
-            resp.status = falcon.HTTP_200
-            resp.text = json.dumps(results, default=str)
+
+        try:
+            if resp.status == falcon.HTTP_200:
+                resp.text = json.dumps(results, default=str)
         except:
             print("Error getting prices")
             resp.status = falcon.HTTP_500
         print("--- %s ms ---" % ((time.time() - start_time)*1000//1))
 
-class getWeb(object):
-    def on_get(self, req, resp):
-        resp.status = falcon.HTTP_200
-        resp.content_type = 'text/html'
-        with open('GotEnergyHourlyRate.html', 'r') as f:
-            resp.text = f.read()
-
 #==================================================================================================
-def validateZone(params):
-    zone = params.get("zone","3")
-    if zone not in ["1","2","3","4"]:
-        return None
-    return zone
-
-def validateDate(params):
-    if "date" not in params:
-        return date.today().strftime("%Y-%m-%d")
-    try:
-        date.fromisoformat(params["date"])
-    except ValueError:
-        return None
-    return params["date"]    
+class getWeb(object):
+    def on_get(self, req, resp, filename):
+        start_time = time.time()
+        isMobile = int(req.get_header('SEC-CH-UA-MOBILE',default='?0')[1])
+        try:
+            print("Web requested '/%s'" % filename)
+            if filename.count('.') == 0:
+                filename = filename +'.html'
+                print("request: %s\n%s\n%s" % (req.access_route, isMobile, req.user_agent))
+                #for key in req.headers :
+                #    print ("%s:%s" % (key, req.headers[key]))
+            with open(filename, 'r') as f:
+                print
+                resp.status = falcon.HTTP_200
+                resp.content_type = 'text/html'
+                resp.text = f.read()
+        except:
+            resp.status = falcon.HTTP_404
+        print("--- %s ms ---" % ((time.time() - start_time)*1000//1))
 
 #==================================================================================================
 
 app = falcon.App()
-app.add_route('/api/elprice', CurrentEnergyPricies())
-app.add_route('/api/dailystats', getDailyStats())
-app.add_route('/elprices', getWeb())
+app.add_route('/api/{endpoint}',    apiEndpoint())
+app.add_route('/{filename}',        getWeb())

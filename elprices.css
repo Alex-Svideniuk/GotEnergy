@@ -1,0 +1,42 @@
+div:has(.price) {
+    font-size: 2.5vw;
+    text-align: center;
+}
+.price {
+    font-size: 4vw;
+    width: 100%;
+}
+.price > label {
+    font-size: 4vw;
+    font-weight: bold;
+}
+.price:has(#lblMinP) {
+    color:darkgreen;
+}
+.price:has(#lblCurP) {
+    color:darkslateblue;
+}
+.price:has(#lblMaxP) {
+    color:darkred;
+}
+
+.btn-block{
+    font-size: 2vw;
+    padding: 2px;
+}
+
+.canvas {
+    width: 100%;
+}
+
+#zoner {
+    position: absolute;
+    font-size: 3vw;
+    z-index: 3;
+    top: 0;
+    right: 0;
+    margin-top: 2vw;
+    margin-right: 2.5vw;
+    padding: 0.5vw;
+}
+
