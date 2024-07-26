@@ -1,81 +1,276 @@
 <html>
   <head>
+	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.0.0/jquery.min.js"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-modal/0.9.1/jquery.modal.min.js"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.18.1/moment.min.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.js"></script>
-	<script>
-			
-	$(document).ready(function() {
-		var today = moment(new Date()).format('YYYY-MM-DD')
-		$("#lblToday").text(today);
-		
-		async function getText(file) {
-			let myObject = await fetch(file);
-			let myText = await myObject.text();
-			myDisplay(myText);
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.3.3/chart.umd.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/1.4.0/chartjs-plugin-annotation.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js" integrity="sha384-oBqDVmMz9ATKxIep9tiCxS/Z9fNfEXiDAYTujMAeBAsjFuCZSmKbSSUnQlmh/jp3" crossorigin="anonymous"></script>
+	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.min.js" integrity="sha384-cuYeSxntonz0PPNlHhBs68uyIAVpIIOZZ5JqeqvYYIcEL727kskC66kF92t6Xl2V" crossorigin="anonymous"></script>
+	<style>
+		/** {
+			font-family: Arial, Helvetica, sans-serif
+		}*/
+		* {
+			font-size: 2.5vw;
 		}
-		
-		$.getJSON("/api/elpricesnow","zone:3;date:2023-05-30;",function(result, status){
-			console.info(result);
-			//res = JSON.parse(result);
-			$("#lblMinP").text(Math.round(result.minNext, 1));
-			$("#lblMinIn").text(result.minIn + " (" + result.minDT + ")");
-			
-			yToday = new Array(result.values.x.length).fill(0);
-			yToday[result.nowIndex] = 100
+		.price {
+			font-size: 4vw;
+		}
+		.price > label {
+			font-size: 4vw;
+			font-weight: bold;
+		}
+	</style>
+	<script>
 
-			yNewDay = new Array(result.values.x.length).fill(0);
-			yNewDay[0] = 100
-			yNewDay[24] = 100
-			yNewDay[48] = 100
+	var myCart = null;
 
-			new Chart("myChart", {
-			type: "line",
-			data: {
-				labels: result.values.x,
-				datasets: [{
-					fill: false,
-					lineTension: 0,
-					backgroundColor: "#00CC00",
-					borderColor: "#00CC00",
-					steppedLine: true,
-					data: result.values.ym
-				},	{
-					fill: false,
-					lineTension: 0,
-					backgroundColor: "rgba(0,0,255,1.0)",
-					borderColor: "rgba(0,0,255,0.1)",
-					steppedLine: true,
-					data: result.values.y
-				},	{
-          type: 'bar',
-          label: 'NewDay',
-          data: yNewDay
-        },	{
-          type: 'bar',
-          label: 'Today',
-					backgroundColor: "#fcdf03",
-          data: yToday
-				}]
-			},
-			options: {
-				legend: {display: false},
-				scales: {
-					yAxes: [{ticks: {min: result.min, max:result.max}}],
-				}
-			}
-			});
-		});		
-		
+	$(document).ready(function() {
+		$("#lblDate").val(new Date());
+		getPrices()
 
 	});
+
+	function getPrices(dalta=0){
+		zone = $("#zoner").val();
+		params = {"zone":zone};
+		date = $("#lblDate").val()
+		date.setDate(date.getDate()+dalta);
+		$("#lblDate").val(date);
+		$("#lblDate").text(moment(date).format('MMMM Do, YYYY'));
+		date = strDate(date);
+		if (date == strDate(new Date)) {
+			$("#next").removeClass('btn-primary');
+			$("#next").addClass('btn-outline-primary disabled');
+			
+		}
+		else {
+			$("#next").removeClass('disabled btn-outline-primary');
+			$("#next").addClass('btn-primary');
+		} 
+
+		params["date"] = date;
+		console.info("requesting prices for zone "+zone +" & date " + date)
+		if (myCart) myCart.destroy();
+		$.getJSON("/api/elprice",params, showPrices)
+	}
+
+	function strDate(date) {
+		return moment(date).format('YYYY-MM-DD');
+	}
+
+	function datetime2range(str){
+		str = str.substr(11,2);
+		val = +str +1;
+		val = val == 24 ? 0 : val;
+		return str+":00-"+String(val).padStart(2, '0')+":00";
+	}
+
+	function showPrices (values, status){
+		console.info(values);
+
+		var max = Math.max(...values.map(o => o.y));
+		var min = Math.min(...values.map(o => o.y));
+
+		now = new Date()
+		if (new Date(values[values.length-1].x) > now ) {
+			var nowIndex = values.findIndex(function(val) {
+				dt = new Date(val.x);
+				return (dt < now && now - dt < 3600000);
+			})
+			//console.info(nowIndex);
+			$("#lblCurP").text(values[nowIndex].y);
+			$("#lblCurT").text(datetime2range(values[nowIndex].x));
+			$("#divNow").show();
+		}
+		else{
+			$("#divNow").hide();
+		}
+
+		$("#lblMinP").text(min);
+		$("#lblMinT").text(datetime2range(values.find(v => v.y == min).x));
+
+		$("#lblMaxP").text(max);
+		$("#lblMaxT").text(datetime2range(values.find(v => v.y == max).x));
+		//console.info();
+		
+		var yMax = (Math.floor(max / 100)+1)*100;
+		var yMin = 0
+		var xMax = values.length - 1;
+		if (min < 0) {
+			yMin = (Math.floor(min / 10)-1)*10;
+		}
+		//console.info(yMin)
+
+		var data = {
+			datasets: [{
+				data: values,
+				stepped: true,
+				fill: true,
+				lineTension: 0,
+				backgroundColor: "rgba(0,0,255,0.1)",
+				borderColor: "rgba(0,0,255,0.5)",
+				segment: {
+					backgroundColor: function(ctx) {
+						 
+						//dt = new Date(ctx.chart.data.datasets[0].data[ctx.p0DataIndex].x)
+						//console.info(dt - now);
+						val = +ctx.chart.data.datasets[0].data[ctx.p0DataIndex].y;
+						/*if (dt < now && now - dt < 3600000) {
+							//return "rgba(255,218,0,1)";
+							//console.info(ctx);  
+							nowIndex = ctx.p0DataIndex;
+						}*/
+						if ((val < 0) || (val - min < 4) || (min > 0 && val / min < 1.1) ) 
+							return "rgba(0,204,0,0.1)"
+						return "rgba(0,0,255,0.1)"
+					},
+        			borderColor: function(ctx) {
+						val = +ctx.chart.data.datasets[0].data[ctx.p0DataIndex].y;
+						if ((val < 0) || (val - min < 4) || (min > 0 && val / min < 1.1) ) 
+							return "rgba(0,204,0,0.5)"
+						return "rgba(0,0,255,0.5)"
+					},
+      			}
+			}]
+		};
+
+		var fontSize = function(context) {
+			var width = context.chart.width;
+			var size = Math.round(width / 56);
+			return {
+				size: size
+			}
+		};
+
+		var options= {
+			scales: {
+				y: {
+					min: yMin, 
+					max:yMax,
+					ticks: {
+						font:fontSize,
+					},
+					grid: {
+						color: function(context) {
+							//console.info(context.tick.value)
+							var v = context.tick.value;
+							if (v % 100 == 0 && v != yMax  && v != yMin)
+								return "rgba(0,0,0,0.5)";
+							if (context.tick.label)
+								return "rgba(0,0,0,0.2)";
+						},
+						lineWidth: function(context) {
+							//console.info(context)
+							var v = context.tick.value;
+							if (v % 100 == 0 && v != yMax  && v != yMin)
+								return 3;
+							return 1;
+						}
+					}
+				},
+				x: {
+					grid: {
+						drawTicks:false,
+						color: function(context) {
+							//console.info(context.tick.value)
+							if (context.tick.label.length > 5)
+								return "rgba(0,0,0,0.4)";
+							if (context.tick.label)
+								return "rgba(0,0,0,0.2)";
+							return "rgba(0,0,0,0.0)";
+						},
+						lineWidth: function(context) {
+							//console.info(context.index)
+							var i = context.index;
+							if (context.tick.label.length > 5 && i !=0 && i != xMax)
+								return 5;
+							return 1;
+						}
+					},
+					ticks: {
+						font:fontSize,
+						callback: function(value, index, ticks) {
+							var label = this.getLabelForValue(value);
+							dt = new Date(label);
+							//hour = +label.substr(11,2);
+							if (dt.getHours() % 2 == 1)
+								return "" ;
+							if (dt.getHours() == 0)
+								return moment(dt).format('DD MMM');
+							return moment(dt).format('HH:mm');
+                    	}
+                	}
+				}
+			},
+    		plugins: {
+				legend: false,
+				annotation: {
+					annotations: {
+						lineToday: {
+							type: 'line',
+							scaleID: "x",
+							value: nowIndex,
+							borderColor: 'rgba(178, 102, 255, 0.5)',
+							borderWidth: 8,
+							label:{
+								enabled:true,
+								position:"start",
+								content:"Now"
+							}
+						}
+					}
+				}
+			}
+		}
+
+		myCart = new Chart("hourlyChart", {type: "line", data:data, options: options});
+	};		
 	</script>
   </head>
-  <body>
-    <p>Energy price for <label id="lblToday"></label> </p>
-	<p>Lowest price is <i><label id="lblMinP"></label> &ouml;re/kWh</i> in <label id="lblMinIn"></label></p>
 
-	<canvas id="myChart" style="width:100%;max-width:700px"></canvas>
+  <body>
+	<div class="p-1 d-flex flex-column justify-content-center w-100" style="width:960px;">
+		<!-- Statistics and zone selection -->
+		<div class="d-flex flex-row  justify-content-between">
+			<div class="flex-column p-2">
+				Lowest price <label id="lblMinT"></label><br>
+				<div class="price" style="color:darkgreen;"><label id="lblMinP">--.-</label> &ouml;re/kWh</div><label id="lblMinIn"></label>
+			</div>
+			<div id="divNow" class="flex-column p-2">
+				Current price <label id="lblCurT"></label><br>
+				<div class="price" style="color:darkslateblue"><label id="lblCurP">--.-</label> &ouml;re/kWh</div>
+			</div>
+			<div class="flex-column p-2">
+				Higest price <label id="lblMaxT"></label><br>
+				<div class="price" style="color:darkred"><label id="lblMaxP">---.-</label> &ouml;re/kWh</div>
+			</div>
+		</div>
+		<div class="d-inline-flex flex-row justify-content-end">
+				<select onchange="getPrices()" id="zoner" class="select m-2 p-1">
+					<option value="1">Zone 1</option>
+					<option value="2">Zone 2</option>
+					<option value="3" selected>Zone 3</option>
+					<option value="4">Zone 4</option>
+				</select>
+		</div>
+		<div class="d-flex flex-row  justify-content-between">
+			<div class="d-flex flex-column flex-fill">
+				<!-- Chart -->
+				<div class="d-flex">
+					<canvas id="hourlyChart" style="width:100%"></canvas>
+				</div>
+				<!-- button block -->
+				<div class="d-inline-flex justify-content-between align-items-end p-2 ">
+					<button id="prev" onclick="getPrices(-1)" class="btn btn-primary">&lt; Prev</button>
+					<div class="p-2 align-self-cente"><label id="lblDate"></label> </div>
+					<button id="next" onclick="getPrices(+1)" class="btn btn-outline-primary">Next &gt;</button>
+				</div>
+			</div>
+		</div>		
+	</div>
+	
   </body>
-</html>
+</html
