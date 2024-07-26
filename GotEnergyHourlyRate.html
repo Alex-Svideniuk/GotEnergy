@@ -25,17 +25,109 @@
 	</style>
 	<script>
 
-	var myCart = null;
+	var hourlyChart = null;
+	var dailyChart = null;
 
 	$(document).ready(function() {
 		$("#lblDate").val(new Date());
-		getPrices()
 
+		var annot = {annotations: {
+						lineToday: {
+							type: 'line',
+							scaleID: "x",
+							borderColor: 'rgba(178, 102, 255, 0.5)',
+							borderWidth: 8,
+							label:{
+								enabled:true,
+								position:"start",
+								content:"Now"
+							}
+						}
+					}}
+
+		var hOpt= {
+			scales: {
+				y: { ticks: {font:fontSize}},
+				x: { ticks: {
+						autoSkip:false,
+						font:fontSize,
+						callback: function(value, index, ticks) {
+							var label = this.getLabelForValue(value);
+							dt = new Date(label);
+							//console.info(dt)
+							//hour = +label.substr(11,2);
+							if (dt.getHours() % 2 == 1)
+								return "" ;
+							if (dt.getHours() == 0)
+								return moment(dt).format('DD MMM');
+							return moment(dt).format('HH:mm');
+                    	}
+                	}
+				}
+			},
+    		plugins: {
+				legend: false,
+				annotation: annot
+			}
+		}
+
+		hourlyChart = new Chart("hourlyChart", {type: "line", options: hOpt});
+
+		var dOpt = {
+			animation : false,
+			parsing: {xAxisKey: 'x'},
+			scales: {
+				y: {
+					grid: {
+						lineWidth: function(context) {
+							var v = context.tick.value;
+							if (v == 0)
+								return 5;
+							return 1;
+						}
+					},
+					ticks:{font:fontSize}
+				},
+				x:{
+					grid:{
+						drawTicks:false,
+						color: function(context) {
+							if (context.type != "tick")
+								return ;
+							if (context.tick.label.length > 2)
+								return "rgba(0,0,0,0.4)";
+							return "rgba(0,0,0,0.2)";
+						}
+					},
+					ticks: {
+						autoSkip:false,
+						font:fontSize,
+						callback: function(value, index, ticks) {
+							var label = this.getLabelForValue(value);
+							dt = new Date(label);
+							//console.info(dt)
+							//hour = +label.substr(11,2);
+							if (dt.getDate() == 1)
+								return moment(dt).format("MMM'YY");
+							return moment(dt).format('DD');
+						}
+					}
+				}
+			},
+			plugins: {
+				legend: false,
+				annotation: annot,
+			}
+		}
+		
+		dailyChart = new Chart("dailyChart", {type: "line", options: dOpt});
+		$("#dailyChart").hide()
+
+		getPrices()
 	});
 
 	function getPrices(dalta=0){
 		zone = $("#zoner").val();
-		params = {"zone":zone};
 		date = $("#lblDate").val()
 		date.setDate(date.getDate()+dalta);
 		$("#lblDate").val(date);
@@ -44,17 +136,15 @@
 		if (date == strDate(new Date)) {
 			$("#next").removeClass('btn-primary');
 			$("#next").addClass('btn-outline-primary disabled');
-			
 		}
 		else {
 			$("#next").removeClass('disabled btn-outline-primary');
 			$("#next").addClass('btn-primary');
 		} 
 
-		params["date"] = date;
-		console.info("requesting prices for zone "+zone +" & date " + date)
-		if (myCart) myCart.destroy();
-		$.getJSON("/api/elprice",params, showPrices)
+		params = {"zone":zone, "date": date};
+		console.info("requesting hourly prices for zone "+zone +" & date " + date)
+		$.getJSON("/api/elprice",params, showHourlyPrices)
 	}
 
 	function strDate(date) {
@@ -68,19 +158,20 @@
 		return str+":00-"+String(val).padStart(2, '0')+":00";
 	}
 
-	function showPrices (values, status){
-		console.info(values);
+	function fontSize (context) {
+		return {size: Math.round(context.chart.width / 56)}
+	};
 
-		var max = Math.max(...values.map(o => o.y));
-		var min = Math.min(...values.map(o => o.y));
-
+	function showHourlyPrices (values, status){
+		//console.info( values);
+		// check if showing today's data
 		now = new Date()
 		if (new Date(values[values.length-1].x) > now ) {
+			//calculate position of "now" indicator
 			var nowIndex = values.findIndex(function(val) {
 				dt = new Date(val.x);
 				return (dt < now && now - dt < 3600000);
-			})
-			//console.info(nowIndex);
+			});
 			$("#lblCurP").text(values[nowIndex].y);
 			$("#lblCurT").text(datetime2range(values[nowIndex].x));
 			$("#divNow").show();
@@ -89,40 +180,42 @@
 			$("#divNow").hide();
 		}
 
+		// calculate Minimum value
+		var min = Math.min(...values.map(o => o.y));
 		$("#lblMinP").text(min);
-		$("#lblMinT").text(datetime2range(values.find(v => v.y == min).x));
+		minT = values.find(v => v.y == min).x
+		if (strDate(now) == strDate(minT)){
+			$("#lblMinT").text(datetime2range(minT));
+		}
+		else {
+			$("#lblMinT").text("TOMORROW");
+		}
 
+		// calculate Maximum value
+		var max = Math.max(...values.map(o => o.y));
 		$("#lblMaxP").text(max);
 		$("#lblMaxT").text(datetime2range(values.find(v => v.y == max).x));
-		//console.info();
-		
+	
+		// calcualte chart boundaries
 		var yMax = (Math.floor(max / 100)+1)*100;
 		var yMin = 0
 		var xMax = values.length - 1;
 		if (min < 0) {
 			yMin = (Math.floor(min / 10)-1)*10;
 		}
-		//console.info(yMin)
 
-		var data = {
+		// Prepare data for chart
+		hourlyChart.data = {
 			datasets: [{
-				data: values,
-				stepped: true,
+				stepped: 'after',
 				fill: true,
-				lineTension: 0,
 				backgroundColor: "rgba(0,0,255,0.1)",
 				borderColor: "rgba(0,0,255,0.5)",
+
+				data: values,
 				segment: {
 					backgroundColor: function(ctx) {
-						 
-						//dt = new Date(ctx.chart.data.datasets[0].data[ctx.p0DataIndex].x)
-						//console.info(dt - now);
 						val = +ctx.chart.data.datasets[0].data[ctx.p0DataIndex].y;
-						/*if (dt < now && now - dt < 3600000) {
-							//return "rgba(255,218,0,1)";
-							//console.info(ctx);  
-							nowIndex = ctx.p0DataIndex;
-						}*/
 						if ((val < 0) || (val - min < 4) || (min > 0 && val / min < 1.1) ) 
 							return "rgba(0,204,0,0.1)"
 						return "rgba(0,0,255,0.1)"
@@ -137,97 +230,177 @@
 			}]
 		};
 
-		var fontSize = function(context) {
-			var width = context.chart.width;
-			var size = Math.round(width / 56);
-			return {
-				size: size
+		hourlyChart.options.plugins.annotation.annotations.lineToday.value = nowIndex;
+
+		hourlyChart.options.scales.y.grid = {
+			color: function(context) {
+				//console.info(context.tick.value)
+				var v = context.tick.value;
+				if (v % 100 == 0 && v != yMax  && v != yMin)
+					return "rgba(0,0,0,0.5)";
+				if (context.tick.label)
+					return "rgba(0,0,0,0.2)";
+			},
+			lineWidth: function(context) {
+				//console.info(context)
+				var v = context.tick.value;
+				if (v % 100 == 0 && v != yMax  && v != yMin)
+					return 3;
+				return 1;
+			}
+		}
+
+		hourlyChart.options.scales.x.grid = {
+			drawTicks:false,
+			color: function(context) {
+				if (context.type != "tick")
+					return ;
+				//console.info(context.tick.label)
+				if (context.tick.label.length > 5)
+					return "rgba(0,0,0,0.4)";
+				if (context.tick.label)
+					return "rgba(0,0,0,0.2)";
+				return "rgba(0,0,0,0.2)";
+			},
+			lineWidth: function(context) {
+				if (context.type != "tick")
+					return;
+				//console.info(context)
+				var i = context.index;
+				if (context.tick.label.length > 5 && i !=0 && i != xMax)
+					return 5;
+				if (context.tick.label)
+					return 1;
+				return 0;
 			}
 		};
+		
+		hourlyChart.options.scales.y.min = yMin;
+		hourlyChart.options.scales.y.max = yMax;
+		hourlyChart.update();
 
-		var options= {
+		// update Daily chart after hourly chart updated 
+		zone = $("#zoner").val();
+		date = strDate($("#lblDate").val())
+		params = {"zone":zone, "date": date};
+		console.info("requesting daily prices for zone "+zone +" & date " + date)
+		$.getJSON("/api/dailystats",params, showDailyPrices)	
+	};		
+
+	function showDailyPrices (values, status){
+		console.info(values)
+		var min = Math.min(...values.map(o => o.min));
+		var max = Math.max(...values.map(o => o.max));
+		var yMax = (Math.floor(max / 10)+1)*10;
+		var xMax = values.length - 1;
+		var yMin = 0
+		if (min < 0) {
+			yMin = (Math.floor(min / 10)-1)*10;
+		}
+
+		date = strDate($("#lblDate").val())
+		var nowIndex = values.findIndex(function(val) {
+				return val.x == date;
+			})
+
+		dailyChart.data = {
+			datasets: [{
+				label:"Min",
+				data: values/*.map((item) => item.min)*/,
+				parsing: {yAxisKey: 'min'},
+				borderColor: "rgba(0,153,0,0.5)",
+				backgroundColor:"rgba(224,224,224,0.5)",
+				fill:+1
+			},{
+				label:"Max",
+				data: values,
+				parsing: {yAxisKey: 'max'},
+				borderColor: "rgba(204,0,0,0.5)",
+				backgroundColor: "rgba(204,0,255,0.5)",
+				fill:2
+			}]
+		};
+		/*var options = {
+			animation : false,
+			parsing: {
+				xAxisKey: 'x',
+			},
 			scales: {
 				y: {
-					min: yMin, 
+					min:yMin, 
 					max:yMax,
-					ticks: {
-						font:fontSize,
-					},
 					grid: {
-						color: function(context) {
-							//console.info(context.tick.value)
-							var v = context.tick.value;
-							if (v % 100 == 0 && v != yMax  && v != yMin)
-								return "rgba(0,0,0,0.5)";
-							if (context.tick.label)
-								return "rgba(0,0,0,0.2)";
-						},
 						lineWidth: function(context) {
 							//console.info(context)
 							var v = context.tick.value;
-							if (v % 100 == 0 && v != yMax  && v != yMin)
-								return 3;
-							return 1;
-						}
-					}
-				},
-				x: {
-					grid: {
-						drawTicks:false,
-						color: function(context) {
-							//console.info(context.tick.value)
-							if (context.tick.label.length > 5)
-								return "rgba(0,0,0,0.4)";
-							if (context.tick.label)
-								return "rgba(0,0,0,0.2)";
-							return "rgba(0,0,0,0.0)";
-						},
-						lineWidth: function(context) {
-							//console.info(context.index)
-							var i = context.index;
-							if (context.tick.label.length > 5 && i !=0 && i != xMax)
+							if (v == 0)
 								return 5;
 							return 1;
 						}
 					},
+					ticks:{
+						font:fontSize,
+					}
+				},
+				x:{
+					grid:{
+						drawTicks:false,
+						color: function(context) {
+							if (context.type != "tick")
+								return ;
+							//console.info(context.tick.label)
+							if (context.tick.label.length > 2)
+								return "rgba(0,0,0,0.4)";
+							return "rgba(0,0,0,0.2)";
+						},
+						lineWidth: function(context) {
+							if (context.type != "tick")
+								return;
+							//console.info(context)
+							var i = context.index;
+							if (context.tick.label.length > 2 && i !=0 && i != xMax)
+								return 5;
+							if (context.tick.label)
+								return 1;
+							return 0;
+						},
+					},
 					ticks: {
+						autoSkip:false,
 						font:fontSize,
 						callback: function(value, index, ticks) {
 							var label = this.getLabelForValue(value);
 							dt = new Date(label);
+							//console.info(dt)
 							//hour = +label.substr(11,2);
-							if (dt.getHours() % 2 == 1)
-								return "" ;
-							if (dt.getHours() == 0)
-								return moment(dt).format('DD MMM');
-							return moment(dt).format('HH:mm');
-                    	}
-                	}
-				}
-			},
-    		plugins: {
-				legend: false,
-				annotation: {
-					annotations: {
-						lineToday: {
-							type: 'line',
-							scaleID: "x",
-							value: nowIndex,
-							borderColor: 'rgba(178, 102, 255, 0.5)',
-							borderWidth: 8,
-							label:{
-								enabled:true,
-								position:"start",
-								content:"Now"
-							}
+							if (dt.getDate() == 1)
+								return moment(dt).format("MMM'YY");
+							return moment(dt).format('DD');
 						}
 					}
 				}
-			}
-		}
+			},
+		}*/
 
-		myCart = new Chart("hourlyChart", {type: "line", data:data, options: options});
-	};		
+		dailyChart.options.scales.x.grid.lineWidth =  function(context) {
+			if (context.type != "tick")
+				return;
+			var i = context.index;
+			if (context.tick.label.length > 2 && i !=0 && i != xMax)
+				return 5;
+			if (context.tick.label)
+				return 1;
+			return 0;
+		},
+		dailyChart.options.plugins.annotation.annotations.lineToday.value = nowIndex;
+		dailyChart.options.plugins.annotation.annotations.lineToday.label.content = date;
+		dailyChart.options.scales.y.min = yMin;
+		dailyChart.options.scales.y.max = yMax;
+		dailyChart.update('active');
+		$("#dailyChart").show()
+	}
+
+
 	</script>
   </head>
 
@@ -256,20 +429,21 @@
 					<option value="4">Zone 4</option>
 				</select>
 		</div>
-		<div class="d-flex flex-row  justify-content-between">
-			<div class="d-flex flex-column flex-fill">
-				<!-- Chart -->
-				<div class="d-flex">
-					<canvas id="hourlyChart" style="width:100%"></canvas>
-				</div>
-				<!-- button block -->
-				<div class="d-inline-flex justify-content-between align-items-end p-2 ">
-					<button id="prev" onclick="getPrices(-1)" class="btn btn-primary">&lt; Prev</button>
-					<div class="p-2 align-self-cente"><label id="lblDate"></label> </div>
-					<button id="next" onclick="getPrices(+1)" class="btn btn-outline-primary">Next &gt;</button>
-				</div>
+		<div class="d-flex flex-column flex-fill">
+			<!-- Hoyrly Chart -->
+			<div class="d-flex">
+				<canvas id="hourlyChart" style="width:100%"></canvas>
 			</div>
-		</div>		
+			<!-- button block -->
+			<div class="d-inline-flex justify-content-between align-items-end p-2 ">
+				<button id="prev" onclick="getPrices(-1)" class="btn btn-primary">&lt; Prev</button>
+				<div class="p-2 align-self-cente"><label id="lblDate"></label> </div>
+				<button id="next" onclick="getPrices(+1)" class="btn btn-outline-primary">Next &gt;</button>
+			</div>
+			<div class="d-fex">
+				<canvas id="dailyChart" style="width:100%"></canvas>
+			</div>
+		</div>
 	</div>
 	
   </body>

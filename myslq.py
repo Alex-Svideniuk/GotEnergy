@@ -6,10 +6,10 @@ class dbEnergy:
     def __init__(self):
         try:
             self.db = mysql.connector.connect( 
-                host="",
-                user="",
-                password="",
-                database="",
+                host="192.168.31.254",
+                user="goteborenergy",
+                password="F@Ww*Am4#IvG",
+                database="GoteborEnergy",
                 connection_timeout=1
             )
             self.cursor = self.db.cursor(buffered=True)
@@ -34,6 +34,11 @@ class dbEnergy:
         else:
             return self.__getDummy()
 
+    def getDailyPrise(self, zone, day):
+        if self.db:
+            return self.__getDailyPriseDB(zone, day)
+        else:
+            return None
     #===========================================================================================================
     def __getDummy(self):
         print("Sending dummy data")
@@ -56,15 +61,7 @@ class dbEnergy:
             print ("No data in DB for %s. Reading from Web..." % (day))
             self.__getNStoreWebHourlyPrise(day, zone)
 
-        self.cursor.execute("select datetime, value" + sql)
-        hprises = self.cursor.fetchall()
-        #print(hprises)
-
-        values = []
-        for rec in hprises:
-            values.append({"x":rec[0].strftime("%Y-%m-%d %H:%M"),"y":rec[1]})
-        values.append({"x":(rec[0]+timedelta(hours=1)).strftime("%Y-%m-%d %H:%M"), "y":rec[1]})
-        return values
+        return self.__getGetHourlyPriceDB("SELECT datetime, value" + sql)
 
     #===========================================================================================================
     def __getCurrentPriseDB(self, zone=3, day = date.today()):
@@ -88,6 +85,10 @@ class dbEnergy:
         else:
             table = "fullCurPrices"
         sql = "SELECT datetime, value FROM %s  WHERE zone = %s;" % (table, zone)
+        return self.__getGetHourlyPriceDB(sql)
+        
+    #===========================================================================================================
+    def __getGetHourlyPriceDB(self, sql):
         self.cursor.execute(sql)
         hprises = self.cursor.fetchall()
 
@@ -96,7 +97,23 @@ class dbEnergy:
             values.append({"x":rec[0].strftime("%Y-%m-%d %H:%M"),"y":rec[1]})
         values.append({"x":(rec[0]+timedelta(hours=1)).strftime("%Y-%m-%d %H:%M"), "y":rec[1]})
         return values
-        
+    
+    #===========================================================================================================
+    def __getDailyPriseDB(self, zone, day):
+        sql = "SELECT DATE, MIN, AVG, MAX FROM dailyStats WHERE zone = %s AND DATE >= (IF((NOW() - INTERVAL 15 DAY) < '%s', NOW() - INTERVAL 15 DAY, '%s') - INTERVAL 15 DAY) LIMIT 31;" % (zone, day, day)
+        self.cursor.execute(sql)
+        dprises = self.cursor.fetchall()
+
+        values = []
+        for rec in dprises:
+            values.append({
+                "x":    rec[0].strftime("%Y-%m-%d"),
+                "min":  rec[1],
+                "avg":  rec[2],
+                "max":  rec[3]
+            })
+        return values
+
     #===========================================================================================================
     def __getCurrCount(self, zone):
         self.cursor.execute("SELECT count(*) FROM currPrices WHERE zone = %s;" % (zone))
@@ -111,12 +128,12 @@ class dbEnergy:
             return None
 
     #===========================================================================================================
-    def __getDatePriseDB(self, day, zone=3):
-        self.cursor.execute("select * from hourlyprices where DATE(datetime) = %s and zone = %s;",[day,zone])
-        hprises = self.cursor.fetchall()
-        if len(hprises) == 0:
-            hprises = self.__getNStoreWebHourlyPrise(day, zone)
-        return hprises
+    #def __getDatePriseDB(self, day, zone=3):
+    #    self.cursor.execute("select * from hourlyprices where DATE(datetime) = %s and zone = %s;",[day,zone])
+    #    hprises = self.cursor.fetchall()
+    #    if len(hprises) == 0:
+    #        hprises = self.__getNStoreWebHourlyPrise(day, zone)
+    #    return hprises
 
     #===========================================================================================================
     def __getNStoreWebHourlyPrise(self, day, zone):
